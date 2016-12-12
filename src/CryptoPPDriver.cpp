@@ -1,14 +1,28 @@
 #include "CryptoPPDriver.h"
+
 #include <crypto++/osrng.h>
+using CryptoPP::AutoSeededRandomPool;
+
 #include <crypto++/aes.h>
 #include <crypto++/blowfish.h>
 #include <crypto++/salsa.h>
 #include <crypto++/arc4.h>
-#include <crypto++/filters.h>
-#include <crypto++/modes.h>
 #include <crypto++/sha.h>
 #include <crypto++/ripemd.h>
+
+#include <crypto++/filters.h>
+using CryptoPP::StringSource;
+using CryptoPP::StringSink;
+using CryptoPP::StreamTransformationFilter;
+using CryptoPP::PK_EncryptorFilter;
+using CryptoPP::PK_DecryptorFilter;
+using CryptoPP::HashFilter;
+
+#include <crypto++/modes.h>
+
 #include <crypto++/hex.h>
+using CryptoPP::HexEncoder;
+
 using namespace std;
 
 CryptoPPDriver::CryptoPPDriver()
@@ -26,11 +40,11 @@ string CryptoPPDriver::encryptAES256(string key, string message)
     string ciphertext;
 
     CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption e;
-    e.SetKey((const unsigned char *)key.c_str(), 32);
+    e.SetKey((const unsigned char *)key.data(), 32);
 
-    CryptoPP::StringSource(message, true,
-        new CryptoPP::StreamTransformationFilter(e,
-            new CryptoPP::StringSink(ciphertext)
+    StringSource(message, true,
+        new StreamTransformationFilter(e,
+            new StringSink(ciphertext)
         ) // StreamTransformationFilter
     ); // StringSource
 
@@ -42,11 +56,11 @@ string CryptoPPDriver::decryptAES256(string key, string ciphertext)
     string message;
 
     CryptoPP::ECB_Mode<CryptoPP::AES>::Decryption d;
-    d.SetKey((const unsigned char *)key.c_str(), 32);
+    d.SetKey((const unsigned char *)key.data(), 32);
 
-    CryptoPP::StringSource(ciphertext, true, 
-        new CryptoPP::StreamTransformationFilter(d,
-            new CryptoPP::StringSink(message)
+    StringSource(ciphertext, true, 
+        new StreamTransformationFilter(d,
+            new StringSink(message)
         ) // StreamTransformationFilter
     ); // StringSource
 
@@ -58,11 +72,11 @@ string CryptoPPDriver::encryptBlowfish(string key, string message)
     string ciphertext;
 
     CryptoPP::ECB_Mode<CryptoPP::Blowfish>::Encryption e;
-    e.SetKey((const unsigned char *)key.c_str(), 16);
+    e.SetKey((const unsigned char *)key.data(), 16);
 
-    CryptoPP::StringSource(message, true,
-        new CryptoPP::StreamTransformationFilter(e,
-            new CryptoPP::StringSink(ciphertext)
+    StringSource(message, true,
+        new StreamTransformationFilter(e,
+            new StringSink(ciphertext)
         ) // StreamTransformationFilter
     ); // StringSource
 
@@ -74,26 +88,25 @@ string CryptoPPDriver::decryptBlowfish(string key, string ciphertext)
     string message;
 
     CryptoPP::ECB_Mode<CryptoPP::Blowfish>::Decryption d;
-    d.SetKey((const unsigned char *)key.c_str(), 16);
+    d.SetKey((const unsigned char *)key.data(), 16);
 
-    CryptoPP::StringSource(ciphertext, true, 
-        new CryptoPP::StreamTransformationFilter(d,
-            new CryptoPP::StringSink(message)
+    StringSource(ciphertext, true, 
+        new StreamTransformationFilter(d,
+            new StringSink(message)
         ) // StreamTransformationFilter
     ); // StringSource
 
     return message;
 }
 
-        // Stream Ciphers
 string CryptoPPDriver::processSalsa20(string key, string iv, string message)
 {
     string ciphertext;
     uint8_t *buffer = new uint8_t[message.length()];
 
     CryptoPP::Salsa20::Encryption salsa;
-    salsa.SetKeyWithIV((const unsigned char *)key.c_str(), 32, (const unsigned char *)iv.c_str());
-    salsa.ProcessData(buffer, (const byte *)message.c_str(), message.length());
+    salsa.SetKeyWithIV((const unsigned char *)key.data(), 32, (const unsigned char *)iv.data());
+    salsa.ProcessData(buffer, (const byte *)message.data(), message.length());
     ciphertext.assign((const char *)buffer, message.length());
 
     return ciphertext;
@@ -101,9 +114,9 @@ string CryptoPPDriver::processSalsa20(string key, string iv, string message)
 
 string CryptoPPDriver::processArc4(string key, string message)
 {
-    CryptoPP::ARC4 arc4((const unsigned char *)key.c_str(), key.length());
-    arc4.ProcessData((unsigned char *)message.c_str(),
-        (const unsigned char *)message.c_str(),
+    CryptoPP::ARC4 arc4((const unsigned char *)key.data(), key.length());
+    arc4.ProcessData((unsigned char *)message.data(),
+        (const unsigned char *)message.data(),
         message.length());
 
     return message;
@@ -111,7 +124,7 @@ string CryptoPPDriver::processArc4(string key, string message)
 
 void CryptoPPDriver::generateRSAKeypair(CryptoPP::RSA::PublicKey **pub, CryptoPP::RSA::PrivateKey **priv)
 {
-    CryptoPP::AutoSeededRandomPool prng;
+    AutoSeededRandomPool prng;
 
     CryptoPP::InvertibleRSAFunction params;
     params.GenerateRandomWithKeySize(prng, 2048);
@@ -123,16 +136,16 @@ void CryptoPPDriver::generateRSAKeypair(CryptoPP::RSA::PublicKey **pub, CryptoPP
 string CryptoPPDriver::encryptRSA(CryptoPP::RSA::PublicKey key, string message)
 {
     string ciphertext("");
-    CryptoPP::AutoSeededRandomPool prng;
+    AutoSeededRandomPool prng;
 
     CryptoPP::RSAES_OAEP_SHA_Encryptor e(key);
     for (int i = 0; i < message.length(); i += e.FixedMaxPlaintextLength())
     {
         int len = e.FixedMaxPlaintextLength();
         string blockIn(message, i, len), blockOut;
-        CryptoPP::StringSource(blockIn, true,
-            new CryptoPP::PK_EncryptorFilter(prng, e,
-                new CryptoPP::StringSink(blockOut)
+        StringSource(blockIn, true,
+            new PK_EncryptorFilter(prng, e,
+                new StringSink(blockOut)
             ) // PK_EncryptorFilter
         ); // StringSource
         ciphertext.append(blockOut);
@@ -144,16 +157,16 @@ string CryptoPPDriver::encryptRSA(CryptoPP::RSA::PublicKey key, string message)
 string CryptoPPDriver::decryptRSA(CryptoPP::RSA::PrivateKey key, string ciphertext)
 {
     string message("");
-    CryptoPP::AutoSeededRandomPool prng;
+    AutoSeededRandomPool prng;
 
     CryptoPP::RSAES_OAEP_SHA_Decryptor d(key);
     for (int i = 0; i < ciphertext.length(); i+= d.FixedCiphertextLength())
     {
         int len = d.FixedCiphertextLength();
         string blockIn(ciphertext, i, len), blockOut;
-        CryptoPP::StringSource(blockIn, true,
-            new CryptoPP::PK_DecryptorFilter(prng, d,
-                new CryptoPP::StringSink(blockOut)
+        StringSource(blockIn, true,
+            new PK_DecryptorFilter(prng, d,
+                new StringSink(blockOut)
             ) // PK_DecryptorFilter
         ); // StringSource
         message.append(blockOut);
@@ -164,7 +177,7 @@ string CryptoPPDriver::decryptRSA(CryptoPP::RSA::PrivateKey key, string cipherte
 
 void CryptoPPDriver::generateElGamalKeypair(CryptoPP::ElGamalKeys::PublicKey **pub, CryptoPP::ElGamalKeys::PrivateKey **priv)
 {
-    CryptoPP::AutoSeededRandomPool prng;
+    AutoSeededRandomPool prng;
 
     *priv = new CryptoPP::ElGamalKeys::PrivateKey();
     (**priv).GenerateRandomWithKeySize(prng, 2048);
@@ -176,16 +189,16 @@ void CryptoPPDriver::generateElGamalKeypair(CryptoPP::ElGamalKeys::PublicKey **p
 string CryptoPPDriver::encryptElGamal(CryptoPP::ElGamalKeys::PublicKey key, string message)
 {
     string ciphertext("");
-    CryptoPP::AutoSeededRandomPool prng;
+    AutoSeededRandomPool prng;
 
     CryptoPP::ElGamal::Encryptor e(key);
     for (int i = 0; i < message.length(); i += e.FixedMaxPlaintextLength())
     {
         int len = e.FixedMaxPlaintextLength();
         string blockIn(message, i, len), blockOut;
-        CryptoPP::StringSource(blockIn, true,
-            new CryptoPP::PK_EncryptorFilter(prng, e,
-                new CryptoPP::StringSink(blockOut)
+        StringSource(blockIn, true,
+            new PK_EncryptorFilter(prng, e,
+                new StringSink(blockOut)
             ) // PK_EncryptorFilter
         ); // StringSource
         ciphertext.append(blockOut);
@@ -197,16 +210,16 @@ string CryptoPPDriver::encryptElGamal(CryptoPP::ElGamalKeys::PublicKey key, stri
 string CryptoPPDriver::decryptElGamal(CryptoPP::ElGamalKeys::PrivateKey key, string ciphertext)
 {
     string message("");
-    CryptoPP::AutoSeededRandomPool prng;
+    AutoSeededRandomPool prng;
 
     CryptoPP::ElGamal::Decryptor d(key);
     for (int i = 0; i < ciphertext.length(); i += d.FixedCiphertextLength())
     {
         int len = d.FixedCiphertextLength();
         string blockIn(ciphertext, i, len), blockOut;
-        CryptoPP::StringSource(blockIn, true,
-            new CryptoPP::PK_DecryptorFilter(prng, d,
-                new CryptoPP::StringSink(blockOut)
+        StringSource(blockIn, true,
+            new PK_DecryptorFilter(prng, d,
+                new StringSink(blockOut)
             ) // PK_DecryptorFilter
         ); // StringSource
         message.append(blockOut);
@@ -220,10 +233,10 @@ string CryptoPPDriver::hashSHA512(string message)
     CryptoPP::SHA512 hash;
     string digest;
 
-    CryptoPP::StringSource s(message, true,
-        new CryptoPP::HashFilter(hash,
-            new CryptoPP::HexEncoder(
-                new CryptoPP::StringSink(digest)
+    StringSource(message, true,
+        new HashFilter(hash,
+            new HexEncoder(
+                new StringSink(digest)
             ) // HexEncoder
         ) // HashFilter
     ); // StringSource
@@ -236,10 +249,10 @@ string CryptoPPDriver::hashRIPEMD160(string message)
     CryptoPP::RIPEMD160 hash;
     string digest;
 
-    CryptoPP::StringSource s(message, true,
-        new CryptoPP::HashFilter(hash,
-            new CryptoPP::HexEncoder(
-                new CryptoPP::StringSink(digest)
+    StringSource(message, true,
+        new HashFilter(hash,
+            new HexEncoder(
+                new StringSink(digest)
             ) // HexEncoder
         ) // HashFilter
     ); // StringSource
