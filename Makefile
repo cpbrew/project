@@ -21,7 +21,7 @@ $(TARGET): $(OBJECTS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.$(SRC_EXT)
 	@mkdir -p $(@D)
-	$(CC) $^ -o $@ -c $(CXXFLAGS) $(INC)
+	$(CC) -c $(CXXFLAGS) $(INC) $^ -o $@
 
 test: $(TARGET)
 	$^

@@ -1,15 +1,14 @@
 #include "LibgcryptDriver.h"
+
 #include <iostream>
 using std::cout;
 using std::endl;
 
-#include <fstream>
-
-#define CHUNKSIZE 1048576 // encrypt 1MB at a time;
-// #define CHUNKSIZE 1024 // encrypt 1KB at a time
+#include <sstream>
 
 void addPadding(string &, size_t);
 string removePadding(string);
+string btoh(const char *b, size_t len);
 void ltob(uint64_t, unsigned char *);
 void btol(const unsigned char *, uint64_t *);
 void checkError(gcry_error_t);
@@ -111,80 +110,90 @@ void LibgcryptDriver::generateRSAKeypair(gcry_sexp_t *pub, gcry_sexp_t *priv)
 {
     gcry_sexp_t params, keypair;
 
-    std::ifstream f("rsakey", std::ios::in | std::ios::binary | std::ios::ate);
-    size_t len = f.tellg();
-    void *buffer = new char[len];
-    f.seekg(0, std::ios::beg);
-    f.read((char *)buffer, len);
-    f.close();
-    checkError(gcry_sexp_new(&keypair, buffer, len, 0));
-
-    // checkError(gcry_sexp_build(&params, NULL, "(genkey (rsa (nbits 4:2048)))"));
-    // checkError(gcry_pk_genkey(&keypair, params));
+    checkError(gcry_sexp_build(&params, NULL, "(genkey (rsa (nbits 4:2048)))"));
+    checkError(gcry_pk_genkey(&keypair, params));
     *pub = gcry_sexp_find_token(keypair, "public-key", 0);
     *priv = gcry_sexp_find_token(keypair, "private-key", 0);
-
-    // const size_t size = 100000; // should be plenty
-    // size_t len;
-    // void *buffer = malloc(size);
-    // len = gcry_sexp_sprint(keypair, GCRYSEXP_FMT_CANON, buffer, size);
-    // std::ofstream f("rsakey", std::ios::out | std::ios::binary);
-    // f.write((const char *)buffer, len);
-    // f.close();
 }
 
-size_t LibgcryptDriver::encryptRSA(gcry_sexp_t key, string message, gcry_sexp_t **chunks)
+void LibgcryptDriver::encryptRSA(gcry_sexp_t key, string message, gcry_sexp_t *cipher)
 {
     gcry_sexp_t m;
     gcry_mpi_t mpi;
     const char *format = "(data (flags raw) (value %m))";
-    const size_t numChunks = (message.length() / CHUNKSIZE) + 1;
-    *chunks = new gcry_sexp_t[numChunks];
 
-    for (size_t i = 0; i < message.length(); i += CHUNKSIZE)
-    {
-        size_t l = (i + CHUNKSIZE) < message.length() ? CHUNKSIZE : message.length() % CHUNKSIZE;
-        checkError(gcry_mpi_scan(&mpi, GCRYMPI_FMT_USG, message.substr(i, l).data(), l, NULL));
-        checkError(gcry_sexp_build(&m, NULL, format, mpi));
-        // checkError(gcry_sexp_build(&m, NULL, format, l, message.substr(i, l)));
-        // cout << "Creating chunk from substring:" << message.substr(i, l) << endl;
-        // cout << "Encrypting chunk:" << endl;
-        // gcry_sexp_dump(m);
-        cout << "About to call encrypt" << endl;
-        checkError(gcry_pk_encrypt(&((*chunks)[i]), m, key));
-        cout << "Successfully called encrypt" << endl;
-        // cout << "Encrypted value:" << endl;
-        // gcry_sexp_dump((*chunks)[i]);
-    }
-    
-    return numChunks;
+    checkError(gcry_mpi_scan(&mpi, GCRYMPI_FMT_USG, message.data(), message.length(), NULL));
+    checkError(gcry_sexp_build(&m, NULL, format, mpi));
+    checkError(gcry_pk_encrypt(cipher, m, key));
 }
 
-string LibgcryptDriver::decryptRSA(gcry_sexp_t key, gcry_sexp_t *chunks, size_t numChunks)
+string LibgcryptDriver::decryptRSA(gcry_sexp_t key, gcry_sexp_t cipher)
 {
-    gcry_sexp_t out;
-    gcry_mpi_t m;
-    size_t bufsize = 10485760; // 10 MB
-    unsigned char *message = new unsigned char[bufsize];
-    size_t s = 0, bytesRead = 0;
+    gcry_sexp_t m;
+    gcry_mpi_t mpi;
+    const size_t bufsize = 10485760; // 10 MB
+    unsigned char *buffer = new unsigned char[bufsize];
+    size_t bytesRead;
 
-    for (int i = 0; i < numChunks; i++)
-    {
-        // cout << "Decrypting chunk:" << endl;
-        // gcry_sexp_dump(chunks[i]);
+    checkError(gcry_pk_decrypt(&m, cipher, key));
+    mpi = gcry_sexp_nth_mpi(m, 0, GCRYMPI_FMT_USG);
+    gcry_mpi_print(GCRYMPI_FMT_USG, buffer, bufsize, &bytesRead, mpi);
 
-        checkError(gcry_pk_decrypt(&out, chunks[i], key));
-        // cout << "Decrypted value:" << endl;
-        // gcry_sexp_dump(out);
+    return string((const char *)buffer, bytesRead);
+}
 
-        m = gcry_sexp_nth_mpi(out, 0, GCRYMPI_FMT_USG);
-        // gcry_mpi_dump(m);
-        gcry_mpi_print(GCRYMPI_FMT_USG, &(message[s]), bufsize - s, &bytesRead, m);
-        s += bytesRead;
-        // cout << endl << "s = " << s << endl;
-    }
+void LibgcryptDriver::generateElGamalKeypair(gcry_sexp_t *pub, gcry_sexp_t *priv)
+{
+    gcry_sexp_t params, keypair;
 
-    return string((const char *)message, s);
+    checkError(gcry_sexp_build(&params, NULL, "(genkey (elg (nbits 4:2048)))"));
+    checkError(gcry_pk_genkey(&keypair, params));
+    *pub = gcry_sexp_find_token(keypair, "public-key", 0);
+    *priv = gcry_sexp_find_token(keypair, "private-key", 0);
+}
+
+void LibgcryptDriver::encryptElGamal(gcry_sexp_t key, string message, gcry_sexp_t *cipher)
+{
+    gcry_sexp_t m;
+    gcry_mpi_t mpi;
+    const char *format = "(data (flags raw) (value %m))";
+
+    checkError(gcry_mpi_scan(&mpi, GCRYMPI_FMT_USG, message.data(), message.length(), NULL));
+    checkError(gcry_sexp_build(&m, NULL, format, mpi));
+    checkError(gcry_pk_encrypt(cipher, m, key));
+}
+
+string LibgcryptDriver::decryptElGamal(gcry_sexp_t key, gcry_sexp_t cipher)
+{
+    gcry_sexp_t m;
+    gcry_mpi_t mpi;
+    const size_t bufsize = 10485760; // 10MB
+    unsigned char *buffer = new unsigned char[bufsize];
+    size_t bytesRead;
+
+    checkError(gcry_pk_decrypt(&m, cipher, key));
+    mpi = gcry_sexp_nth_mpi(m, 0, GCRYMPI_FMT_USG);
+    gcry_mpi_print(GCRYMPI_FMT_USG, buffer, bufsize, &bytesRead, mpi);
+
+    return string((const char *) buffer, bytesRead);
+}
+
+string LibgcryptDriver::hashSHA512(string message)
+{
+    unsigned int len = gcry_md_get_algo_dlen(GCRY_MD_SHA512);
+    char *digest = new char[len];
+    gcry_md_hash_buffer(GCRY_MD_SHA512, (void *)digest, message.data(), message.length());
+
+    return btoh(digest, len);
+}
+
+string LibgcryptDriver::hashRIPEMD160(string message)
+{
+    unsigned int len = gcry_md_get_algo_dlen(GCRY_MD_RMD160);
+    char *digest = new char[len];
+    gcry_md_hash_buffer(GCRY_MD_RMD160, (void *)digest, message.data(), message.length());
+
+    return btoh(digest, len);
 }
 
 void addPadding(string &message, size_t blockSize)
@@ -208,6 +217,22 @@ string removePadding(string message)
     btol((unsigned char *)((message.substr(message.length() - 8, 8)).data()), &length);
 
     return message.substr(0, length);
+}
+
+// Convert an array of bytes to a hex string
+string btoh(const char *b, size_t len)
+{
+    const char *digits = "0123456789ABCDEF";
+    std::stringstream ss;
+
+    for (size_t i = 0; i < len; i++)
+    {
+        char d = b[i];
+        ss << digits[(d >> 4) & 0xF];
+        ss << digits[d & 0xF];
+    }
+
+    return ss.str();
 }
 
 // Convert a 64-bit integer to an array of bytes

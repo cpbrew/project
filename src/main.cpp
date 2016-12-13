@@ -6,8 +6,8 @@
 
 using namespace std;
 
-#define INPUT_FILE string("Snake_River.jpg")
-// #define INPUT_FILE string("mytest.txt")
+// #define INPUT_FILE string("Snake_River.jpg")
+#define INPUT_FILE string("mytest.txt")
 
 void testCryptoPP(string);
 void testLibgcrypt(string);
@@ -137,7 +137,6 @@ void testLibgcrypt(string m)
         if (i < 8) IV[i] = i;
     }
     string c, k(key, 32), iv(IV, 8);
-    gcry_sexp_t cAsymmetric;
 
     cout << "Running Libgcrypt: AES256..." << endl;
     t = clock();
@@ -180,15 +179,40 @@ void testLibgcrypt(string m)
     driver.generateRSAKeypair(&pubRSA, &privRSA);
     cout << "Running Libgcrypt: RSA..." << endl;
     t = clock();
-    gcry_sexp_t *chunks;
-    size_t numChunks = driver.encryptRSA(pubRSA, m, &chunks);
-    // for (size_t i = 0; i < numChunks; i++)
-    //     gcry_sexp_dump(chunks[i]);
-    m = driver.decryptRSA(privRSA, chunks, numChunks);
-    // cout << "m = " << endl;
-    // cout << m << endl;
+    gcry_sexp_t cRSA;
+    driver.encryptRSA(pubRSA, m, &cRSA);
+    m = driver.decryptRSA(privRSA, cRSA);
     cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
     f.open("bin/" + INPUT_FILE + ".gcry.rsa", ios::out | ios::binary);
     f.write(m.data(), m.length());
+    f.close();
+
+    cout << "Generating ElGamal keys..." << endl;
+    gcry_sexp_t pubElGamal, privElGamal;
+    driver.generateElGamalKeypair(&pubElGamal, &privElGamal);
+    cout << "Running Libgcrypt: ElGamal..." << endl;
+    t = clock();
+    gcry_sexp_t cElGamal;
+    driver.encryptElGamal(pubElGamal, m, &cElGamal);
+    m = driver.decryptElGamal(privElGamal, cElGamal);
+    cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
+    f.open("bin/" + INPUT_FILE + ".gcry.elgamal", ios::out | ios::binary);
+    f.write(m.data(), m.length());
+    f.close();
+
+    cout << "Running Libgcrypt: SHA512..." << endl;
+    t = clock();
+    c = driver.hashSHA512(m);
+    cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
+    f.open("bin/" + INPUT_FILE + ".gcry.sha512", ios::out);
+    f.write(c.data(), c.length());
+    f.close();
+
+    cout << "Running Libgcrypt: RIPEMD160..." << endl;
+    t = clock();
+    c = driver.hashRIPEMD160(m);
+    cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
+    f.open("bin/" + INPUT_FILE + ".gcry.ripemd160", ios::out);
+    f.write(c.data(), c.length());
     f.close();
 }

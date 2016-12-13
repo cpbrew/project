@@ -21,9 +21,13 @@ class LibgcryptDriver
 
         // Asymmetric Key
         void generateRSAKeypair(gcry_sexp_t *, gcry_sexp_t *);
-        size_t encryptRSA(gcry_sexp_t, string, gcry_sexp_t **);
-        string decryptRSA(gcry_sexp_t, gcry_sexp_t *, size_t);
-        // void generateElGamalKeypair(ElGamalKeys::PublicKey **, ElGamalKeys::PrivateKey **);
-        // string encryptElGamal(ElGamalKeys::PublicKey, string);
-        // string decryptElGamal(ElGamalKeys::PrivateKey, string);
+        void encryptRSA(gcry_sexp_t, string, gcry_sexp_t *);
+        string decryptRSA(gcry_sexp_t, gcry_sexp_t);
+        void generateElGamalKeypair(gcry_sexp_t *, gcry_sexp_t *);
+        void encryptElGamal(gcry_sexp_t, string, gcry_sexp_t *);
+        string decryptElGamal(gcry_sexp_t, gcry_sexp_t);
+
+        // Hash Functions
+        string hashSHA512(string);
+        string hashRIPEMD160(string);
 };
