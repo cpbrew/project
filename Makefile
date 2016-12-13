@@ -8,7 +8,7 @@ BIN_DIR		= bin
 
 CC		= g++
 SRC_EXT		= cpp
-CFLAGS		= -std=c++11
+CXXFLAGS	= -std=c++11 -g
 INC		= -I$(INC_DIR)
 
 SOURCES		= $(shell find $(SRC_DIR) -name *.$(SRC_EXT))
@@ -21,7 +21,7 @@ $(TARGET): $(OBJECTS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.$(SRC_EXT)
 	@mkdir -p $(@D)
-	$(CC) $^ -o $@ -c $(CFLAGS) $(INC)
+	$(CC) $^ -o $@ -c $(CXXFLAGS) $(INC)
 
 test: $(TARGET)
 	$^

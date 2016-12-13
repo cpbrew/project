@@ -137,6 +137,7 @@ void testLibgcrypt(string m)
         if (i < 8) IV[i] = i;
     }
     string c, k(key, 32), iv(IV, 8);
+    gcry_sexp_t cAsymmetric;
 
     cout << "Running Libgcrypt: AES256..." << endl;
     t = clock();
@@ -175,14 +176,19 @@ void testLibgcrypt(string m)
     f.close();
 
     cout << "Generating RSA keys..." << endl;
-    gcry_sexp_t keypair;
-    driver.generateRSAKeypair(&keypair);
-    cout << "Running Libgcrypt++: RSA..." << endl;
+    gcry_sexp_t pubRSA, privRSA;
+    driver.generateRSAKeypair(&pubRSA, &privRSA);
+    cout << "Running Libgcrypt: RSA..." << endl;
     t = clock();
-    c = driver.encryptRSA(keypair, m);
-    // m = driver.decryptRSA(keypair, c);
+    gcry_sexp_t *chunks;
+    size_t numChunks = driver.encryptRSA(pubRSA, m, &chunks);
+    // for (size_t i = 0; i < numChunks; i++)
+    //     gcry_sexp_dump(chunks[i]);
+    m = driver.decryptRSA(privRSA, chunks, numChunks);
+    // cout << "m = " << endl;
+    // cout << m << endl;
     cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
     f.open("bin/" + INPUT_FILE + ".gcry.rsa", ios::out | ios::binary);
-    f.write(c.data(), c.length());
+    f.write(m.data(), m.length());
     f.close();
 }
