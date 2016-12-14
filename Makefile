@@ -1,5 +1,5 @@
 TARGET_NAME	= final
-LIBS		= -lcrypto++ -lcrypto -lgcrypt
+LIBS		= -lcrypto++ -lgcrypt -lnettle -lhogweed -lgmp
 
 INC_DIR		= include
 SRC_DIR		= src

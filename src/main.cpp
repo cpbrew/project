@@ -3,16 +3,15 @@
 #include <ctime>
 #include "CryptoPPDriver.h"
 #include "LibgcryptDriver.h"
-#include "OpenSSLDriver.h"
+#include "NettleDriver.h"
 
 using namespace std;
 
-// #define INPUT_FILE string("Snake_River.jpg")
 #define INPUT_FILE string("mytest.txt")
 
 void testCryptoPP(string);
 void testLibgcrypt(string);
-void testOpenSSL(string);
+void testNettle(string);
 
 int main(int argc, char *argv[])
 {
@@ -29,9 +28,9 @@ int main(int argc, char *argv[])
     f.close();
     string m(buffer, message_s);
 
-    // testCryptoPP(m);
-    // testLibgcrypt(m);
-    testOpenSSL(m);
+    testCryptoPP(m);
+    testLibgcrypt(m);
+    testNettle(m);
 
     return 0;
 }
@@ -220,9 +219,9 @@ void testLibgcrypt(string m)
     f.close();
 }
 
-void testOpenSSL(string m)
+void testNettle(string m)
 {
-    OpenSSLDriver driver;
+    NettleDriver driver;
     ofstream f;
     clock_t t;
     char key[32], IV[8];
@@ -233,31 +232,68 @@ void testOpenSSL(string m)
     }
     string c, k(key, 32), iv(IV, 8);
 
-    cout << "Running OpenSSL: AES256..." << endl;
+    cout << "Running Nettle: AES256..." << endl;
     t = clock();
     c = driver.encryptAES256(k, m);
     m = driver.decryptAES256(k, c);
     cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
-    f.open("bin/" + INPUT_FILE + ".ossl.aes256", ios::out | ios::binary);
+    f.open("bin/" + INPUT_FILE + ".nettle.aes256", ios::out | ios::binary);
     f.write(m.data(), m.length());
     f.close();
 
-    cout << "Running OpenSSL: Blowfish..." << endl;
+    cout << "Running Nettle: Blowfish..." << endl;
     t = clock();
     c = driver.encryptBlowfish(k, m);
     m = driver.decryptBlowfish(k, c);
     cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
-    f.open("bin/" + INPUT_FILE + ".ossl.blowfish", ios::out | ios::binary);
+    f.open("bin/" + INPUT_FILE + ".nettle.blowfish", ios::out | ios::binary);
     f.write(m.data(), m.length());
     f.close();
 
-    cout << "Running OpenSSL: ARC4..." << endl;
+    cout << "Running Nettle: Salsa20..." << endl;
     t = clock();
-    c = driver.encryptArc4(k, m);
-    m = driver.decryptArc4(k, c);
+    c = driver.processSalsa20(k, iv, m);
+    m = driver.processSalsa20(k, iv, c);
     cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
-    f.open("bin/" + INPUT_FILE + ".ossl.arc4", ios::out | ios::binary);
+    f.open("bin/" + INPUT_FILE + ".nettle.salsa20", ios::out | ios::binary);
     f.write(m.data(), m.length());
     f.close();
 
+    cout << "Running Nettle: ARC4..." << endl;
+    t = clock();
+    c = driver.processArc4(k, m);
+    m = driver.processArc4(k, c);
+    cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
+    f.open("bin/" + INPUT_FILE + ".nettle.arc4", ios::out | ios::binary);
+    f.write(m.data(), m.length());
+    f.close();
+
+    cout << "Generating RSA keys..." << endl;
+    struct rsa_public_key pubRSA;
+    struct rsa_private_key privRSA;
+    driver.generateRSAKeypair(&pubRSA, &privRSA);
+    cout << "Running Nettle: RSA..." << endl;
+    t = clock();
+    mpz_t *cRSA = driver.encryptRSA(pubRSA, m);
+    m = driver.decryptRSA(privRSA, cRSA);
+    cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
+    f.open("bin/" + INPUT_FILE + ".nettle.rsa", ios::out | ios::binary);
+    f.write(m.data(), m.length());
+    f.close();
+
+    cout << "Running Nettle: SHA512..." << endl;
+    t = clock();
+    c = driver.hashSHA512(m);
+    cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
+    f.open("bin/" + INPUT_FILE + ".nettle.sha512", ios::out);
+    f.write(c.data(), c.length());
+    f.close();
+
+    cout << "Running Nettle: RIPEMD160..." << endl;
+    t = clock();
+    c = driver.hashRIPEMD160(m);
+    cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
+    f.open("bin/" + INPUT_FILE + ".nettle.ripemd160", ios::out);
+    f.write(c.data(), c.length());
+    f.close();
 }
