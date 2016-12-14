@@ -3,6 +3,7 @@
 #include <ctime>
 #include "CryptoPPDriver.h"
 #include "LibgcryptDriver.h"
+#include "OpenSSLDriver.h"
 
 using namespace std;
 
@@ -11,6 +12,7 @@ using namespace std;
 
 void testCryptoPP(string);
 void testLibgcrypt(string);
+void testOpenSSL(string);
 
 int main(int argc, char *argv[])
 {
@@ -28,7 +30,8 @@ int main(int argc, char *argv[])
     string m(buffer, message_s);
 
     // testCryptoPP(m);
-    testLibgcrypt(m);
+    // testLibgcrypt(m);
+    testOpenSSL(m);
 
     return 0;
 }
@@ -215,4 +218,46 @@ void testLibgcrypt(string m)
     f.open("bin/" + INPUT_FILE + ".gcry.ripemd160", ios::out);
     f.write(c.data(), c.length());
     f.close();
+}
+
+void testOpenSSL(string m)
+{
+    OpenSSLDriver driver;
+    ofstream f;
+    clock_t t;
+    char key[32], IV[8];
+    for (int i = 0; i < 32; i++)
+    {
+        key[i] = i;
+        if (i < 8) IV[i] = i;
+    }
+    string c, k(key, 32), iv(IV, 8);
+
+    cout << "Running OpenSSL: AES256..." << endl;
+    t = clock();
+    c = driver.encryptAES256(k, m);
+    m = driver.decryptAES256(k, c);
+    cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
+    f.open("bin/" + INPUT_FILE + ".ossl.aes256", ios::out | ios::binary);
+    f.write(m.data(), m.length());
+    f.close();
+
+    cout << "Running OpenSSL: Blowfish..." << endl;
+    t = clock();
+    c = driver.encryptBlowfish(k, m);
+    m = driver.decryptBlowfish(k, c);
+    cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
+    f.open("bin/" + INPUT_FILE + ".ossl.blowfish", ios::out | ios::binary);
+    f.write(m.data(), m.length());
+    f.close();
+
+    cout << "Running OpenSSL: ARC4..." << endl;
+    t = clock();
+    c = driver.encryptArc4(k, m);
+    m = driver.decryptArc4(k, c);
+    cout << "Elapsed time: " << (clock() - t) / (CLOCKS_PER_SEC / 1000) << endl;
+    f.open("bin/" + INPUT_FILE + ".ossl.arc4", ios::out | ios::binary);
+    f.write(m.data(), m.length());
+    f.close();
+
 }

@@ -1,5 +1,5 @@
 TARGET_NAME	= final
-LIBS		= -lcrypto++ -lssl -lgcrypt
+LIBS		= -lcrypto++ -lcrypto -lgcrypt
 
 INC_DIR		= include
 SRC_DIR		= src
